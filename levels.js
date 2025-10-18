@@ -39,7 +39,7 @@ const LEVELS = [
     /* ========= L3: 5×5 – Center Block (ép đi vòng, chắc pass) ========= */
     {
         name: "Level 3 — Center Block (5×5)",
-        gridSize: 5,
+        gridSize: 4,
         nodes: [
             { x: 0, y: 0, color: "red" }, { x: 4, y: 4, color: "red" },
             { x: 0, y: 4, color: "blue" }, { x: 4, y: 0, color: "blue" },
