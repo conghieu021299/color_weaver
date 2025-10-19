@@ -5,40 +5,203 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Color Weaver – Path Debug with Coordinates</title>
 <style>
-  :root{ --green:#4cd178; --green-deep:#0e8a4b; }
-  *{box-sizing:border-box} html,body{height:100%;margin:0;font-family:system-ui,Inter,Arial}
-  body{background:#89d5ff;display:grid;place-items:center}
-
-  .screen{
-    position:relative; width:min(430px,100vw);
-    height:calc(min(430px,100vw)*2); max-height:100vh;
-    overflow:hidden; border-radius:22px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+  :root{ 
+    --primary: #667eea;
+    --primary-deep: #4c51bf;
+    --secondary: #764ba2;
+    --accent: #f093fb;
   }
-  .bg{
-  position:absolute;
-  inset:0;
-  background:url('https://conghieu021299.github.io/color_weaver/img/background.png') center/cover no-repeat;
-  z-index:0;
-}
-
-
-  .title{position:absolute; top:120px; left:50%; transform:translateX(-50%); text-align:center; z-index:1}
-  .title .c{margin:0; font-weight:900; font-size:52px; color:#38b6ff; text-shadow:0 4px 0 #fff}
-  .title .w{margin:-6px 0 0; font-weight:900; font-size:56px; color:#ffb400; text-shadow:0 4px 0 #fff}
-
-  .node{
-    --w:74px; position:absolute; width:var(--w); height:calc(var(--w)*0.92);
-    border-radius:calc(var(--w)*0.24);
-    display:grid; place-items:center; transform:translate(-50%,-55%);
-    font-weight:900; font-size:calc(var(--w)*0.38); color:#fff; text-shadow:0 2px 0 #0003; z-index:2;
+  
+  * { box-sizing: border-box; }
+  
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Arial;
   }
-  .node.current{background:linear-gradient(#79f095,#22b753); border:calc(var(--w)*0.06) solid var(--green-deep)}
-  .node.locked {background:linear-gradient(#d8dde5,#aeb6c2); border:calc(var(--w)*0.06) solid #8c95a2}
+  
+  /* Animated gradient background */
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #667eea 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+    display: grid;
+    place-items: center;
+    position: relative;
+  }
+  
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.15) 0%, transparent 50%);
+    pointer-events: none;
+  }
 
-  .play{position:absolute; left:50%; bottom:88px; transform:translateX(-50%);
-    width:180px;height:84px;border-radius:100px; background:linear-gradient(#7cf2a1,#22b753);
-    border:6px solid var(--green-deep); box-shadow:0 12px 0 #095c32, 0 22px 34px rgba(0,0,0,.35); display:grid; place-items:center}
-  .play svg{width:40px;height:40px;fill:#fff}
+  .screen {
+    position: relative;
+    width: min(430px, 100vw);
+    height: calc(min(430px, 100vw) * 2);
+    max-height: 100vh;
+    overflow: hidden;
+    border-radius: 28px;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(20px);
+  }
+  
+  .bg {
+    position: absolute;
+    inset: 0;
+    background: 
+      linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%),
+      url('https://conghieu021299.github.io/color_weaver/img/background.png') center/cover no-repeat;
+    z-index: 0;
+    opacity: 0.95;
+  }
+
+  /* Floating animation for title */
+  @keyframes float {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-10px); }
+  }
+
+  .title {
+    position: absolute;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 1;
+    animation: float 4s ease-in-out infinite;
+  }
+  
+  .title .c {
+    margin: 0;
+    font-weight: 900;
+    font-size: 56px;
+    background: linear-gradient(135deg, #667eea 0%, #4facfe 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 4px 8px rgba(102, 126, 234, 0.4));
+    letter-spacing: 2px;
+  }
+  
+  .title .w {
+    margin: -8px 0 0;
+    font-weight: 900;
+    font-size: 60px;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 4px 8px rgba(240, 147, 251, 0.4));
+    letter-spacing: 2px;
+  }
+
+  /* Level nodes with glow */
+  @keyframes nodeGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.5); }
+    50% { box-shadow: 0 0 30px rgba(102, 126, 234, 0.8); }
+  }
+
+  .node {
+    --w: 80px;
+    position: absolute;
+    width: var(--w);
+    height: calc(var(--w) * 0.92);
+    border-radius: calc(var(--w) * 0.28);
+    display: grid;
+    place-items: center;
+    transform: translate(-50%, -55%);
+    font-weight: 900;
+    font-size: calc(var(--w) * 0.42);
+    color: #fff;
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    z-index: 2;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+  
+  .node.current {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: calc(var(--w) * 0.07) solid rgba(255, 255, 255, 0.4);
+    box-shadow: 
+      0 8px 24px rgba(102, 126, 234, 0.5),
+      0 0 40px rgba(102, 126, 234, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    animation: nodeGlow 2s ease-in-out infinite;
+  }
+  
+  .node.current:hover {
+    transform: translate(-50%, -55%) scale(1.1);
+  }
+  
+  .node.locked {
+    background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+    border: calc(var(--w) * 0.07) solid rgba(148, 163, 184, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  /* Play button with pulse */
+  @keyframes pulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.05); }
+  }
+
+  .play {
+    position: absolute;
+    left: 50%;
+    bottom: 88px;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 90px;
+    border-radius: 100px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 7px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 
+      0 12px 0 #065f46,
+      0 20px 40px rgba(0, 0, 0, 0.4),
+      inset 0 2px 0 rgba(255, 255, 255, 0.4);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  
+  .play:hover {
+    transform: translateX(-50%) scale(1.08);
+    box-shadow: 
+      0 12px 0 #065f46,
+      0 25px 50px rgba(0, 0, 0, 0.5),
+      inset 0 2px 0 rgba(255, 255, 255, 0.4);
+  }
+  
+  .play:active {
+    transform: translateX(-50%) translateY(4px) scale(1.05);
+    box-shadow: 
+      0 8px 0 #065f46,
+      0 15px 30px rgba(0, 0, 0, 0.4);
+  }
+  
+  .play svg {
+    width: 44px;
+    height: 44px;
+    fill: #fff;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  }
 
   svg.overlay{position:absolute; inset:0; z-index:1; pointer-events:none}
   .overlay path{stroke:transparent; fill:none}

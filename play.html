@@ -363,50 +363,100 @@
 
         // ---------- UI ----------
         return (
-          <div className="min-h-screen w-full flex flex-col items-center gap-5 p-4 md:p-6">
+          <div className="min-h-screen w-full flex flex-col items-center gap-6 p-4 md:p-8" style={{position: 'relative', zIndex: 1}}>
             {/* Top bar */}
-            <header className="w-full max-w-5xl glass rounded-2xl px-4 py-3 md:px-6 md:py-4 shadow-sm border border-white/50 dark:border-white/10">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 shadow ring-2 ring-white/50"></div>
+            <header className="w-full max-w-6xl glass rounded-3xl px-5 py-4 md:px-8 md:py-5 shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 shadow-xl ring-4 ring-white/30 floating flex items-center justify-center">
+                    <span className="text-2xl">🎨</span>
+                  </div>
                   <div>
-                    <div className="text-xl md:text-2xl font-bold tracking-tight">Color Weaver</div>
-                    <div className="text-xs md:text-sm text-gray-600 dark:text-slate-300/80">Connect the colors. Restore the world.</div>
+                    <div className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+                      Color Weaver
+                    </div>
+                    <div className="text-xs md:text-sm font-medium text-gray-700 dark:text-slate-200">
+                      Connect colors • Fill the grid • Master the flow
+                    </div>
                   </div>
                 </div>
 
-                <button onClick={() => (window.location.href = 'index.html')}
-                        className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">
+                <button 
+                  onClick={() => (window.location.href = 'index.html')}
+                  className="px-4 py-2.5 rounded-xl bg-white/90 hover:bg-white shadow-lg border border-white/50 text-sm font-semibold btn-hover-lift backdrop-blur-sm"
+                >
                   ⟵ Home
                 </button>
-
-                <div className="hidden md:flex items-center gap-2">
-                  <button onClick={prevLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">◀</button>
-                  <div className="px-3 py-2 rounded-xl bg-white/80 shadow border text-sm font-semibold">{level.name}</div>
-                  <button onClick={nextLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">▶</button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button onClick={resetLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">Reset</button>
-                  <button onClick={undo} className="px-3 py-2 rounded-xl bg-white/90 hover:bg-white shadow border text-sm">Undo</button>
-                  <button onClick={giveHint} className="px-3 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow text-sm">Hint</button>
-                </div>
               </div>
 
-              {/* Level picker (mobile) */}
-              <div className="mt-3 flex md:hidden items-center justify-center gap-2">
-                <button onClick={prevLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">◀</button>
-                <div className="px-3 py-2 rounded-xl bg-white/80 shadow border text-sm font-semibold">{level.name}</div>
-                <button onClick={nextLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">▶</button>
+              {/* Level navigation */}
+              <div className="mt-5 flex items-center justify-center gap-3">
+                <button 
+                  onClick={prevLevel} 
+                  disabled={levelIndex === 0}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold btn-hover-lift"
+                >
+                  ◀ Prev
+                </button>
+                <div className="px-5 py-2.5 rounded-xl glass shadow-lg border text-sm md:text-base font-bold min-w-[200px] text-center">
+                  {level.name}
+                </div>
+                <button 
+                  onClick={nextLevel}
+                  disabled={levelIndex === LEVELS.length - 1}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold btn-hover-lift"
+                >
+                  Next ▶
+                </button>
+              </div>
+
+              {/* Action buttons */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button 
+                  onClick={resetLevel} 
+                  className="px-4 py-2 rounded-xl bg-white/90 hover:bg-white shadow-md border text-sm font-semibold btn-hover-lift"
+                >
+                  🔄 Reset
+                </button>
+                <button 
+                  onClick={undo} 
+                  disabled={history.length === 0}
+                  className="px-4 py-2 rounded-xl bg-white/90 hover:bg-white shadow-md border text-sm font-semibold btn-hover-lift disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  ↶ Undo
+                </button>
+                <button 
+                  onClick={giveHint} 
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg hover:shadow-xl text-sm font-bold btn-hover-lift"
+                >
+                  💡 Hint
+                </button>
+                <button
+                  onClick={() => setShowGrid(v => !v)}
+                  className="px-4 py-2 rounded-xl bg-white/90 hover:bg-white shadow-md border text-sm font-semibold btn-hover-lift"
+                >
+                  {showGrid ? "🚫 Grid" : "⊞ Grid"}
+                </button>
               </div>
 
               {/* Progress */}
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-xs text-gray-600 dark:text-slate-300/80 mb-1">
-                  <span>Tiến độ</span><span>{pct}%</span>
+              <div className="mt-5">
+                <div className="flex items-center justify-between text-xs md:text-sm font-bold text-gray-700 dark:text-slate-200 mb-2">
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg">📊</span>
+                    Progress
+                  </span>
+                  <span className="px-3 py-1 rounded-lg bg-white/80 shadow-sm">
+                    {pct}%
+                  </span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{width: pct + '%'}}></div>
+                <div className="h-3 w-full rounded-full bg-white/40 dark:bg-slate-800/60 overflow-hidden shadow-inner relative">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500 transition-all duration-500 ease-out relative overflow-hidden" 
+                    style={{width: pct + '%'}}
+                  >
+                    <div className="absolute inset-0 progress-shine"></div>
+                  </div>
                 </div>
               </div>
             </header>
@@ -414,7 +464,7 @@
             {/* Board */}
             <div
               ref={boardRef}
-              className="relative w-full max-w-5xl aspect-square select-none touch-none glass rounded-3xl p-3 md:p-4 board-shadow"
+              className="relative w-full max-w-6xl aspect-square select-none touch-none glass rounded-3xl p-4 md:p-6 board-shadow"
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
@@ -445,15 +495,16 @@
                   return (
                     <div key={k}
                       className={[
-                        "relative rounded-2xl border bg-white/80 dark:bg-slate-900/40",
-                        "overflow-hidden transition-all duration-150",
+                        "relative rounded-2xl border-2 bg-white/90 dark:bg-slate-900/50",
+                        "overflow-hidden transition-all duration-200",
+                        "hover:shadow-lg hover:scale-[1.02]",
                         borderClass
                       ].join(" ")}
                     >
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/80 to-slate-100/60 dark:from-slate-900/40 dark:to-slate-800/30"></div>
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/90 via-slate-50/70 to-slate-100/80 dark:from-slate-900/50 dark:via-slate-800/40 dark:to-slate-700/30"></div>
 
                       {cellColor && !isObstacle && !isBridge && (
-                        <div className={`absolute inset-[4px] md:inset-[6px] rounded-xl opacity-95 shadow ${COLOR_FILL[cellColor] || ""}`}></div>
+                        <div className={`absolute inset-[5px] md:inset-[7px] rounded-xl opacity-95 shadow-lg cell-animate ${COLOR_FILL[cellColor] || ""}`}></div>
                       )}
 
                       {isBridge && (
@@ -481,7 +532,7 @@
 
                       {isNode && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded-full ring-2 ring-white/90 dark:ring-black/40 shadow ${COLOR_FILL[isNode.color] || ""} ${glowClass}`}></div>
+                          <div className={`w-4 h-4 md:w-5 md:h-5 rounded-full ring-[3px] ring-white/95 dark:ring-black/50 shadow-xl ${COLOR_FILL[isNode.color] || ""} ${glowClass}`}></div>
                         </div>
                       )}
 
@@ -504,15 +555,26 @@
               )}
 
               {complete && (
-                <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center rounded-3xl">
-                  <div className="pop-anim glass rounded-3xl p-6 md:p-8 text-center shadow-xl border border-white/50 dark:border-white/10">
-                    <div className="text-2xl md:text-3xl font-extrabold">Level Cleared ✨</div>
-                    <div className="mt-2 text-sm text-gray-700 dark:text-slate-300">Great job! Tất cả ô đã được phủ màu.</div>
-                    <div className="mt-5 flex items-center justify-center gap-2">
-                      <button onClick={resetLevel} className="px-4 py-2 rounded-xl bg-white hover:bg-white/90 shadow border text-sm">
-                        Replay
+                <div className="absolute inset-0 bg-gradient-to-br from-black/40 to-purple-900/30 backdrop-blur-md flex items-center justify-center rounded-3xl">
+                  <div className="pop-anim glass rounded-3xl p-8 md:p-10 text-center shadow-2xl max-w-md">
+                    <div className="text-5xl mb-4">🎉</div>
+                    <div className="text-3xl md:text-4xl font-black bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500 bg-clip-text text-transparent mb-3">
+                      Level Cleared!
+                    </div>
+                    <div className="text-base md:text-lg text-gray-700 dark:text-slate-200 font-medium mb-6">
+                      Perfect! Tất cả ô đã được phủ màu. 🌟
+                    </div>
+                    <div className="flex items-center justify-center gap-3">
+                      <button 
+                        onClick={resetLevel} 
+                        className="px-6 py-3 rounded-xl bg-white/90 hover:bg-white shadow-lg border text-base font-bold btn-hover-lift"
+                      >
+                        🔄 Replay
                       </button>
-                      <button onClick={nextLevel} className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 shadow text-sm">
+                      <button 
+                        onClick={nextLevel} 
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 shadow-xl text-base font-bold btn-hover-lift"
+                      >
                         Next Level →
                       </button>
                     </div>
@@ -521,57 +583,94 @@
               )}
             </div>
 
-            {/* Controls dưới */}
-            <div className="w-full max-w-5xl flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => (isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? nextLevel() : null)}
-                  className={`px-4 py-2 rounded-xl shadow ${isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-gray-200 text-gray-500 dark:bg-white/10 dark:text-slate-400"}`}
-                  title={isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? "Đi tới màn kế tiếp" : "Hãy hoàn thành để tiếp tục"}
-                >
-                  {isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? "Next Level →" : "Hoàn thành để tiếp tục"}
-                </button>
-
-                <button
-                  onClick={() => setShowGrid(v => !v)}
-                  className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm"
-                  title="Bật/tắt lưới"
-                >
-                  {showGrid ? "Hide Grid" : "Show Grid"}
-                </button>
+            {/* Special features info */}
+            <div className="w-full max-w-6xl flex flex-wrap items-center justify-center gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl glass shadow-md border">
+                <span className="text-lg">⛉</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Bridge</span>
               </div>
-
-              <div className="flex items-center flex-wrap gap-2 text-xs text-gray-600 dark:text-slate-300/80">
-                <span className="px-2 py-1 rounded-lg bg-white/70 border">Bridge ⛉</span>
-                <span className="px-2 py-1 rounded-lg bg-white/70 border">Portal ⟲</span>
-                <span className="px-2 py-1 rounded-lg bg-white/70 border">Mix +pigment</span>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl glass shadow-md border">
+                <span className="text-lg">⟲</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Portal</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl glass shadow-md border">
+                <span className="text-lg">➕</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Color Mix</span>
               </div>
             </div>
 
             {/* Tips */}
-            <div className="w-full max-w-5xl grid md:grid-cols-3 gap-3 text-sm">
-              <div className="glass rounded-2xl p-3 border shadow-sm">
-                <div className="font-semibold mb-1">Cách chơi</div>
-                <div>• Kéo từ một <span className="font-semibold">node màu</span> để bắt đầu.</div>
-                <div>• Nối 2 node cùng màu để hoàn tất 1 đường.</div>
-                <div>• Phủ kín bảng (trừ vật cản) để win.</div>
+            <div className="w-full max-w-6xl grid md:grid-cols-3 gap-4 text-sm">
+              <div className="glass rounded-2xl p-5 border shadow-lg hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">🎮</span>
+                  <div className="font-bold text-lg text-gray-800 dark:text-white">Cách chơi</div>
+                </div>
+                <div className="space-y-2 text-gray-700 dark:text-slate-200">
+                  <div className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">•</span>
+                    <span>Kéo từ một <span className="font-bold text-purple-600 dark:text-purple-400">node màu</span> để bắt đầu</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">•</span>
+                    <span>Nối 2 node cùng màu để hoàn thành đường</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">•</span>
+                    <span>Phủ kín toàn bộ ô (trừ vật cản) để win</span>
+                  </div>
+                </div>
               </div>
-              <div className="glass rounded-2xl p-3 border shadow-sm">
-                <div className="font-semibold mb-1">Công cụ</div>
-                <div>• <span className="font-semibold">Undo</span> để lùi 1 bước.</div>
-                <div>• <span className="font-semibold">Hint</span> gợi ý/giải tự động.</div>
-                <div>• <span className="font-semibold">Reset</span> để chơi lại.</div>
+              
+              <div className="glass rounded-2xl p-5 border shadow-lg hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">🛠️</span>
+                  <div className="font-bold text-lg text-gray-800 dark:text-white">Công cụ</div>
+                </div>
+                <div className="space-y-2 text-gray-700 dark:text-slate-200">
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold">•</span>
+                    <span><span className="font-bold text-blue-600 dark:text-blue-400">Undo</span> để quay lại bước trước</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold">•</span>
+                    <span><span className="font-bold text-amber-600 dark:text-amber-400">Hint</span> gợi ý hoặc giải tự động</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold">•</span>
+                    <span><span className="font-bold text-red-600 dark:text-red-400">Reset</span> để chơi lại từ đầu</span>
+                  </div>
+                </div>
               </div>
-              <div className="glass rounded-2xl p-3 border shadow-sm">
-                <div className="font-semibold mb-1">Ô đặc biệt</div>
-                <div>• <span className="font-semibold">Bridge</span> cho phép 2 màu đi chồng lane.</div>
-                <div>• <span className="font-semibold">Portal</span> dịch chuyển tức thì.</div>
-                <div>• <span className="font-semibold">Mix</span> trộn màu (R+B=P, R+Y=O, B+Y=G).</div>
+              
+              <div className="glass rounded-2xl p-5 border shadow-lg hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">✨</span>
+                  <div className="font-bold text-lg text-gray-800 dark:text-white">Ô đặc biệt</div>
+                </div>
+                <div className="space-y-2 text-gray-700 dark:text-slate-200">
+                  <div className="flex items-start gap-2">
+                    <span className="text-emerald-500 font-bold">•</span>
+                    <span><span className="font-bold text-emerald-600 dark:text-emerald-400">Bridge ⛉</span> cho 2 màu đi chéo</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-emerald-500 font-bold">•</span>
+                    <span><span className="font-bold text-purple-600 dark:text-purple-400">Portal ⟲</span> dịch chuyển tức thì</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-emerald-500 font-bold">•</span>
+                    <span><span className="font-bold text-amber-600 dark:text-amber-400">Mix +</span> trộn màu (R+B=P, R+Y=O, B+Y=G)</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <footer className="py-2 text-xs text-gray-500 dark:text-slate-400">
-              © {new Date().getFullYear()} Color Weaver – Prototype UI
+            <footer className="py-4 text-sm font-medium text-gray-600 dark:text-slate-300">
+              <div className="flex items-center justify-center gap-2">
+                <span>Made with</span>
+                <span className="text-red-500 text-lg">❤️</span>
+                <span>© {new Date().getFullYear()} Color Weaver</span>
+              </div>
             </footer>
           </div>
         );
