@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flow Puzzle – Color Weaver (UI)</title>
+
+    <script>
+      // Tailwind: chỉ bật dark mode khi <html class="dark">
+      tailwind.config = { darkMode: 'class' };
+    </script>
+    <!-- Tailwind CDN (dev only) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Styles tách riêng -->
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+
+  <body class="bg-animated text-black">
+    <div id="root"></div>
+
+    <!-- React 18 UMD -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel to compile JSX in-browser (dev only) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- App (JSX) – import logic + levels như module -->
+    <script type="text/babel" data-presets="react" data-type="module">
+      import {
+        key, isAdj, neighborsOf, mixAfter,
+        solvePathForColor, orderColors, applySolutionPaths,
+        computeProgress, isBoardComplete, solveAllColors,
+      } from './logic.js';
+      import LEVELS from './levels.js';
+
+      const { useEffect, useMemo, useRef, useState } = React;
+
+      // UI-only color classes (Tailwind)
+      const COLOR_FILL = {
+        red:"bg-red-500", blue:"bg-blue-500", yellow:"bg-yellow-400",
+        green:"bg-green-500", orange:"bg-orange-500", purple:"bg-purple-500",
+        teal:"bg-teal-500", pink:"bg-pink-500",
+      };
+      const COLOR_BORDER = {
+        red:"border-red-400", blue:"border-blue-400", yellow:"border-yellow-300",
+        green:"border-green-400", orange:"border-orange-400", purple:"border-purple-400",
+        teal:"border-teal-400", pink:"border-pink-400",
+      };
+      const COLOR_GLOW = {
+        red:"glow-red", blue:"glow-blue", yellow:"glow-yellow",
+        green:"glow-green", orange:"glow-orange", purple:"glow-purple",
+        teal:"glow-teal", pink:"glow-pink",
+      };
+
+      // Mix rule (game design) – UI truyền xuống logic khi cần
+      const MIX_RULES = {
+        "red+blue":"purple","blue+red":"purple",
+        "red+yellow":"orange","yellow+red":"orange",
+        "blue+yellow":"green","yellow+blue":"green",
+      };
+
+      function FlowPuzzle() {
+        // Lấy level từ ?level=1..N
+        const urlParams = new URLSearchParams(window.location.search);
+        const levelParam = parseInt(urlParams.get('level') || '1', 10);
+        const startLevelIndex = isNaN(levelParam) ? 0 : Math.min(LEVELS.length - 1, Math.max(0, levelParam - 1));
+        const [levelIndex, setLevelIndex] = useState(startLevelIndex);
+
+        const level = LEVELS[levelIndex];
+        const N = level.gridSize;
+
+        // Derived maps/sets từ level (UI giữ cấu trúc, logic chỉ nhận dữ liệu)
+        const nodesByCell = useMemo(() => {
+          const map = new Map();
+          for (const n of level.nodes) map.set(key(n.x, n.y), { color: n.color });
+          return map;
+        }, [level]);
+
+        const endpointsByColor = useMemo(() => {
+          const by = {};
+          for (const n of level.nodes) {
+            by[n.color] ??= [];
+            by[n.color].push({ x: n.x, y: n.y });
+          }
+          return by;
+        }, [level]);
+
+        const obstacles = useMemo(() => new Set((level.obstacles || []).map(o => key(o.x, o.y))), [level]);
+        const bridges   = useMemo(() => new Set((level.bridges   || []).map(o => key(o.x, o.y))), [level]);
+        const portalMap = useMemo(() => {
+          const m = new Map();
+          for (const p of (level.portals || [])) {
+            m.set(key(p.a.x, p.a.y), { x: p.b.x, y: p.b.y });
+            m.set(key(p.b.x, p.b.y), { x: p.a.x, y: p.a.y });
+          }
+          return m;
+        }, [level]);
+        const mixNodes  = useMemo(() => {
+          const m = new Map();
+          for (const mn of (level.mixNodes || [])) m.set(key(mn.x, mn.y), { pigment: mn.pigment });
+          return m;
+        }, [level]);
+
+        // UI state
+        const [occupancy, setOccupancy] = useState(
+          Array.from({ length: N }, () => Array.from({ length: N }, () => null))
+        );
+        const [bridgeOcc, setBridgeOcc] = useState({});
+        const [paths, setPaths] = useState({});
+        const [active, setActive] = useState(null);
+        const [showGrid, setShowGrid] = useState(true);
+        const [history, setHistory] = useState([]);
+        const boardRef = useRef(null);
+
+        // Undo snapshot
+        function takeSnapshot() {
+          setHistory(h => [
+            ...h,
+            {
+              occupancy: occupancy.map(r => r.slice()),
+              bridgeOcc: Object.fromEntries(
+                Object.entries(bridgeOcc).map(([k, v]) => [k, Array.from(v || [])])
+              ),
+              paths: Object.fromEntries(
+                Object.entries(paths).map(([c, p]) => [c, p.map(pp => ({ ...pp }))])
+              ),
+              active: active ? { color: active.color, path: active.path.map(p => ({ ...p })) } : null,
+            },
+          ]);
+        }
+        function undo() {
+          const prev = history[history.length - 1];
+          if (!prev) return;
+          setHistory(h => h.slice(0, -1));
+          setOccupancy(prev.occupancy.map(r => r.slice()));
+          setBridgeOcc(
+            Object.fromEntries(Object.entries(prev.bridgeOcc).map(([k, arr]) => [k, new Set(arr)]))
+          );
+          setPaths(
+            Object.fromEntries(Object.entries(prev.paths).map(([c, p]) => [c, p.map(pp => ({ ...pp }))]))
+          );
+          setActive(prev.active ? { color: prev.active.color, path: prev.active.path.map(p => ({ ...p })) } : null);
+        }
+
+        // Reset khi đổi level
+        useEffect(() => {
+          setPaths({});
+          setActive(null);
+          setOccupancy(Array.from({ length: N }, () => Array.from({ length: N }, () => null)));
+          setBridgeOcc({});
+          setHistory([]);
+        }, [N, levelIndex]);
+
+        // Map clientX/Y -> cell (UI)
+        function pointToCell(clientX, clientY) {
+          const el = boardRef.current;
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          const size = Math.min(rect.width, rect.height);
+          const cell = size / N;
+          const offsetX = clientX - rect.left;
+          const offsetY = clientY - rect.top;
+          const startX = (rect.width - size) / 2;
+          const startY = (rect.height - size) / 2;
+          const xIn = offsetX - startX;
+          const yIn = offsetY - startY;
+          if (xIn < 0 || yIn < 0 || xIn >= size || yIn >= size) return null;
+          const x = Math.floor(xIn / cell);
+          const y = Math.floor(yIn / cell);
+          if (x < 0 || y < 0 || x >= N || y >= N) return null;
+          return { x, y };
+        }
+
+        function eraseColor(prev, color) {
+          const clone = prev.map(row => row.slice());
+          for (let y = 0; y < N; y++)
+            for (let x = 0; x < N; x++)
+              if (clone[y][x] === color) clone[y][x] = null;
+          return clone;
+        }
+
+        function occupyBridgeCell(kc, color) {
+          setBridgeOcc(prev => {
+            const next = { ...prev };
+            const s = new Set(Array.from((prev[kc] || [])));
+            s.add(color);
+            next[kc] = s;
+            return next;
+          });
+        }
+
+        // === Tương tác (UI gọi sang logic khi cần) ===
+        function startDrawAt(cell) {
+          const node = nodesByCell.get(key(cell.x, cell.y));
+          if (!node) return; // phải bắt đầu ở node
+          takeSnapshot();
+          const color = node.color;
+
+          setPaths(prev => {
+            const np = { ...prev };
+            if (np[color]) delete np[color];
+            return np;
+          });
+
+          setOccupancy(prev => eraseColor(prev, color));
+
+          setBridgeOcc(prev => {
+            const copy = {};
+            for (const [k, v] of Object.entries(prev)) {
+              const nv = new Set(Array.from(v || []));
+              nv.delete(color);
+              copy[k] = nv;
+            }
+            return copy;
+          });
+
+          const kStart = key(cell.x, cell.y);
+          if (bridges.has(kStart)) {
+            occupyBridgeCell(kStart, color);
+          } else {
+            setOccupancy(prev => {
+              const next = prev.map(r => r.slice());
+              next[cell.y][cell.x] = color;
+              return next;
+            });
+          }
+
+          setActive({ color, path: [cell] });
+        }
+
+        function handleMoveTo(cell) {
+          if (!active) return;
+          const baseColor = active.color;
+          const path = active.path;
+          const last = path[path.length - 1];
+          if (!isAdj(last, cell)) return;
+
+          const k = key(cell.x, cell.y);
+          if (obstacles.has(k)) return;
+
+          // Backtrack một bước
+          if (path.length >= 2) {
+            const prevCell = path[path.length - 2];
+            if (cell.x === prevCell.x && cell.y === prevCell.y) {
+              takeSnapshot();
+              const newPath = path.slice(0, -1);
+              setActive({ color: baseColor, path: newPath });
+              setOccupancy(prev => {
+                const clone = prev.map(r => r.slice());
+                clone[last.y][last.x] = null;
+                return clone;
+              });
+              return;
+            }
+          }
+
+          takeSnapshot();
+
+          setOccupancy(prev => {
+            let next = prev.map(r => r.slice());
+            const occ = next[cell.y][cell.x];
+            if (occ && occ !== baseColor && !bridges.has(k)) {
+              next = eraseColor(next, occ);
+              setPaths(p => {
+                const np = { ...p };
+                delete np[occ];
+                return np;
+              });
+            }
+            if (bridges.has(k)) occupyBridgeCell(k, baseColor);
+            else next[cell.y][cell.x] = baseColor;
+            return next;
+          });
+
+          let color = mixAfter(cell, baseColor, mixNodes, MIX_RULES);
+
+          const newPath = [...path, cell];
+          const endpoints = endpointsByColor[color] || endpointsByColor[baseColor];
+          const reachedOther =
+            endpoints &&
+            endpoints.some(e => e.x === cell.x && e.y === cell.y) &&
+            !(path.length === 1 && cell.x === path[0].x && cell.y === path[0].y);
+
+          const portalDest = portalMap.get(k);
+          let finalPath = newPath;
+          if (portalDest) {
+            finalPath = [...newPath, { x: portalDest.x, y: portalDest.y }];
+            setOccupancy(prev => {
+              const next = prev.map(r => r.slice());
+              const kd = key(portalDest.x, portalDest.y);
+              if (!bridges.has(kd)) next[portalDest.y][portalDest.x] = color;
+              else occupyBridgeCell(kd, color);
+              return next;
+            });
+          }
+
+          if (reachedOther) {
+            setPaths(prev => ({ ...prev, [color]: finalPath }));
+            setActive(null);
+          } else {
+            setActive({ color, path: finalPath });
+            setPaths(prev => ({ ...prev, [color]: finalPath }));
+          }
+        }
+
+        function endDraw() {
+          if (!active) return;
+          const { color, path } = active;
+          setPaths(prev => ({ ...prev, [color]: path }));
+          setActive(null);
+        }
+
+        // Controls
+        function resetLevel() {
+          setPaths({});
+          setActive(null);
+          setOccupancy(Array.from({ length: N }, () => Array.from({ length: N }, () => null)));
+          setBridgeOcc({});
+          setHistory([]);
+        }
+        const nextLevel = () => setLevelIndex(i => Math.min(LEVELS.length - 1, i + 1));
+        const prevLevel = () => setLevelIndex(i => Math.max(0, i - 1));
+
+        // Hint / Auto-solve (gọi pure logic)
+        function giveHint() {
+          takeSnapshot();
+          const result = solveAllColors({
+            mode: 'all', N, occupancy, obstacles, bridges, portalMap,
+            mixNodes, MIX_RULES, endpointsByColor, paths
+          });
+          if (!result) {
+            // fallback: giải 1 cặp còn thiếu
+            const one = solveAllColors({
+              mode: 'pair', N, occupancy, obstacles, bridges, portalMap,
+              mixNodes, MIX_RULES, endpointsByColor, paths
+            });
+            if (!one) return;
+            setPaths(one.solution);
+            setActive(null);
+            setOccupancy(one.occ);
+            setBridgeOcc(one.bOcc);
+            return;
+          }
+          setPaths(result.solution);
+          setActive(null);
+          setOccupancy(result.occ);
+          setBridgeOcc(result.bOcc);
+        }
+
+        // Events
+        const complete = isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths);
+        const pct = computeProgress(N, obstacles, occupancy, bridgeOcc);
+
+        const onPointerDown = e => { const c = pointToCell(e.clientX, e.clientY); if (c) startDrawAt(c); };
+        const onPointerMove = e => { if (!active) return; const c = pointToCell(e.clientX, e.clientY); if (c) handleMoveTo(c); };
+        const onPointerUp   = () => endDraw();
+
+        const onTouchStart = e => { const t = e.touches[0]; if (!t) return; const c = pointToCell(t.clientX, t.clientY); if (c) startDrawAt(c); };
+        const onTouchMove  = e => { const t = e.touches[0]; if (!t || !active) return; const c = pointToCell(t.clientX, t.clientY); if (c) handleMoveTo(c); };
+        const onTouchEnd   = () => endDraw();
+
+        // ---------- UI ----------
+        return (
+          <div className="min-h-screen w-full flex flex-col items-center gap-5 p-4 md:p-6">
+            {/* Top bar */}
+            <header className="w-full max-w-5xl glass rounded-2xl px-4 py-3 md:px-6 md:py-4 shadow-sm border border-white/50 dark:border-white/10">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 shadow ring-2 ring-white/50"></div>
+                  <div>
+                    <div className="text-xl md:text-2xl font-bold tracking-tight">Color Weaver</div>
+                    <div className="text-xs md:text-sm text-gray-600 dark:text-slate-300/80">Connect the colors. Restore the world.</div>
+                  </div>
+                </div>
+
+                <button onClick={() => (window.location.href = 'index.html')}
+                        className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">
+                  ⟵ Home
+                </button>
+
+                <div className="hidden md:flex items-center gap-2">
+                  <button onClick={prevLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">◀</button>
+                  <div className="px-3 py-2 rounded-xl bg-white/80 shadow border text-sm font-semibold">{level.name}</div>
+                  <button onClick={nextLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">▶</button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button onClick={resetLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">Reset</button>
+                  <button onClick={undo} className="px-3 py-2 rounded-xl bg-white/90 hover:bg-white shadow border text-sm">Undo</button>
+                  <button onClick={giveHint} className="px-3 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow text-sm">Hint</button>
+                </div>
+              </div>
+
+              {/* Level picker (mobile) */}
+              <div className="mt-3 flex md:hidden items-center justify-center gap-2">
+                <button onClick={prevLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">◀</button>
+                <div className="px-3 py-2 rounded-xl bg-white/80 shadow border text-sm font-semibold">{level.name}</div>
+                <button onClick={nextLevel} className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm">▶</button>
+              </div>
+
+              {/* Progress */}
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs text-gray-600 dark:text-slate-300/80 mb-1">
+                  <span>Tiến độ</span><span>{pct}%</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{width: pct + '%'}}></div>
+                </div>
+              </div>
+            </header>
+
+            {/* Board */}
+            <div
+              ref={boardRef}
+              className="relative w-full max-w-5xl aspect-square select-none touch-none glass rounded-3xl p-3 md:p-4 board-shadow"
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+            >
+              <div
+                className="absolute inset-0 grid gap-[2px] md:gap-0.5"
+                style={{ gridTemplateColumns: `repeat(${N}, 1fr)`, gridTemplateRows: `repeat(${N}, 1fr)` }}
+              >
+                {Array.from({ length: N * N }).map((_, i) => {
+                  const x = i % N;
+                  const y = Math.floor(i / N);
+                  const k = key(x, y);
+                  const cellColor = (occupancy[y] || [])[x];
+                  const isObstacle = obstacles.has(k);
+                  const isNode = nodesByCell.get(k);
+                  const isBridge = bridges.has(k);
+                  const portal = portalMap.get(k);
+                  const mix = mixNodes.get(k);
+                  const bset = bridgeOcc[k];
+
+                  const borderClass = isNode ? (COLOR_BORDER[isNode.color] || "") : "border-gray-200 dark:border-white/10";
+                  const glowClass = isNode ? (COLOR_GLOW[isNode.color] || "") : "";
+
+                  return (
+                    <div key={k}
+                      className={[
+                        "relative rounded-2xl border bg-white/80 dark:bg-slate-900/40",
+                        "overflow-hidden transition-all duration-150",
+                        borderClass
+                      ].join(" ")}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/80 to-slate-100/60 dark:from-slate-900/40 dark:to-slate-800/30"></div>
+
+                      {cellColor && !isObstacle && !isBridge && (
+                        <div className={`absolute inset-[4px] md:inset-[6px] rounded-xl opacity-95 shadow ${COLOR_FILL[cellColor] || ""}`}></div>
+                      )}
+
+                      {isBridge && (
+                        <div className="absolute inset-[4px] md:inset-[6px] rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-white/10">
+                          <div className="absolute inset-1 flex gap-1 items-stretch justify-stretch">
+                            {Array.from(bset || new Set()).slice(0, 2).map((c, idx) => (
+                              <div key={idx} className={`w-1/2 rounded-lg opacity-95 shadow ${COLOR_FILL[c] || ""}`}></div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {isObstacle && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-2/3 h-2/3 rounded-xl bg-slate-700/80 dark:bg-slate-300/70"></div>
+                        </div>
+                      )}
+
+                      {portal && !isObstacle && (
+                        <div className="absolute top-1.5 right-1.5 text-[10px] md:text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200 px-1.5 py-0.5 rounded">⟲</div>
+                      )}
+                      {mix && !isObstacle && (
+                        <div className="absolute bottom-1.5 right-1.5 text-[10px] md:text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 px-1.5 py-0.5 rounded">+{mix.pigment}</div>
+                      )}
+
+                      {isNode && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded-full ring-2 ring-white/90 dark:ring-black/40 shadow ${COLOR_FILL[isNode.color] || ""} ${glowClass}`}></div>
+                        </div>
+                      )}
+
+                      {isBridge && <div className="absolute top-1 left-1 text-[10px] md:text-xs text-gray-400">⛉</div>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {showGrid && (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none"
+                     viewBox={`0 0 ${N} ${N}`} preserveAspectRatio="none">
+                  {Array.from({ length: N + 1 }).map((_, i) => (
+                    <g key={i}>
+                      <line x1={i} y1={0} x2={i} y2={N} stroke="#e5e7eb" strokeWidth={0.03} />
+                      <line x1={0} y1={i} x2={N} y2={i} stroke="#e5e7eb" strokeWidth={0.03} />
+                    </g>
+                  ))}
+                </svg>
+              )}
+
+              {complete && (
+                <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center rounded-3xl">
+                  <div className="pop-anim glass rounded-3xl p-6 md:p-8 text-center shadow-xl border border-white/50 dark:border-white/10">
+                    <div className="text-2xl md:text-3xl font-extrabold">Level Cleared ✨</div>
+                    <div className="mt-2 text-sm text-gray-700 dark:text-slate-300">Great job! Tất cả ô đã được phủ màu.</div>
+                    <div className="mt-5 flex items-center justify-center gap-2">
+                      <button onClick={resetLevel} className="px-4 py-2 rounded-xl bg-white hover:bg-white/90 shadow border text-sm">
+                        Replay
+                      </button>
+                      <button onClick={nextLevel} className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 shadow text-sm">
+                        Next Level →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Controls dưới */}
+            <div className="w-full max-w-5xl flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => (isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? nextLevel() : null)}
+                  className={`px-4 py-2 rounded-xl shadow ${isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-gray-200 text-gray-500 dark:bg-white/10 dark:text-slate-400"}`}
+                  title={isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? "Đi tới màn kế tiếp" : "Hãy hoàn thành để tiếp tục"}
+                >
+                  {isBoardComplete(N, obstacles, occupancy, bridgeOcc, endpointsByColor, paths) ? "Next Level →" : "Hoàn thành để tiếp tục"}
+                </button>
+
+                <button
+                  onClick={() => setShowGrid(v => !v)}
+                  className="px-3 py-2 rounded-xl bg-white/80 hover:bg-white shadow border text-sm"
+                  title="Bật/tắt lưới"
+                >
+                  {showGrid ? "Hide Grid" : "Show Grid"}
+                </button>
+              </div>
+
+              <div className="flex items-center flex-wrap gap-2 text-xs text-gray-600 dark:text-slate-300/80">
+                <span className="px-2 py-1 rounded-lg bg-white/70 border">Bridge ⛉</span>
+                <span className="px-2 py-1 rounded-lg bg-white/70 border">Portal ⟲</span>
+                <span className="px-2 py-1 rounded-lg bg-white/70 border">Mix +pigment</span>
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="w-full max-w-5xl grid md:grid-cols-3 gap-3 text-sm">
+              <div className="glass rounded-2xl p-3 border shadow-sm">
+                <div className="font-semibold mb-1">Cách chơi</div>
+                <div>• Kéo từ một <span className="font-semibold">node màu</span> để bắt đầu.</div>
+                <div>• Nối 2 node cùng màu để hoàn tất 1 đường.</div>
+                <div>• Phủ kín bảng (trừ vật cản) để win.</div>
+              </div>
+              <div className="glass rounded-2xl p-3 border shadow-sm">
+                <div className="font-semibold mb-1">Công cụ</div>
+                <div>• <span className="font-semibold">Undo</span> để lùi 1 bước.</div>
+                <div>• <span className="font-semibold">Hint</span> gợi ý/giải tự động.</div>
+                <div>• <span className="font-semibold">Reset</span> để chơi lại.</div>
+              </div>
+              <div className="glass rounded-2xl p-3 border shadow-sm">
+                <div className="font-semibold mb-1">Ô đặc biệt</div>
+                <div>• <span className="font-semibold">Bridge</span> cho phép 2 màu đi chồng lane.</div>
+                <div>• <span className="font-semibold">Portal</span> dịch chuyển tức thì.</div>
+                <div>• <span className="font-semibold">Mix</span> trộn màu (R+B=P, R+Y=O, B+Y=G).</div>
+              </div>
+            </div>
+
+            <footer className="py-2 text-xs text-gray-500 dark:text-slate-400">
+              © {new Date().getFullYear()} Color Weaver – Prototype UI
+            </footer>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<FlowPuzzle />);
+    </script>
+  </body>
+</html>
